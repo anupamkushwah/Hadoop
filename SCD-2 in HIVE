@@ -1,0 +1,34 @@
+insert into table dim_departments select row_number() over (order by department_id) rownum,department_id,department_name,from_unixtime(unix_timestamp()) create_dt,'9999-12-31' update_dt from departments;
+
+
+create table temp_dim_departments as select * from dim_departments;
+
+truncate table dim_departments;
+
+
+
+insert into dim_departments
+select d.department_key,d.department_id,d.department_name,d.create_dt,
+case when d.dept_id is not null and d.update_dt='9999-12-31' then from_unixtime(unix_timestamp())
+	else d.update_dt end as update_dt from (
+select d.department_key,d.department_id,d.department_name,d.create_dt,d.update_dt,
+del.department_id as dept_id  from temp_dim_departments d
+    left outer join delta_departments del
+    on d.department_id=del.department_id)d
+
+union all
+
+select cast(row_number()over(order by dd.department_id
+)+dept.max_dept_key as int)as key,dd.department_id,dd.department_name,
+from_unixtime(unix_timestamp()) create_dt,'9999-12-31'
+from delta_departments dd
+inner join (
+select max(department_key) as max_dept_key,
+'1' as joincolumn from temp_dim_departments)dept
+on '1'=dept.joincolumn;
+
+drop table temp_dim_departments;
+
+INVALIDATE METADATA;
+
+select * from dim_departments where department_id=2;
